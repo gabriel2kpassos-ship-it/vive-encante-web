@@ -1,16 +1,25 @@
-import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-
-export const config = {
-  matcher: ["/admin/:path*"],
-};
+import { NextResponse } from "next/server";
 
 export function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  if (pathname === "/admin/login") return NextResponse.next();
-  if (pathname.startsWith("/admin/api")) return NextResponse.next();
+  // Só protege /admin
+  if (!pathname.startsWith("/admin")) {
+    return NextResponse.next();
+  }
 
+  // Permite página de login
+  if (pathname === "/admin/login") {
+    return NextResponse.next();
+  }
+
+  // Permite API (ela já valida sessão internamente)
+  if (pathname.startsWith("/admin/api")) {
+    return NextResponse.next();
+  }
+
+  // Verifica cookie de sessão
   const session = req.cookies.get("session")?.value;
 
   if (!session) {
@@ -22,3 +31,7 @@ export function proxy(req: NextRequest) {
 
   return NextResponse.next();
 }
+
+export const config = {
+  matcher: ["/admin/:path*"],
+};
