@@ -1,29 +1,32 @@
-import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 export function middleware(req: NextRequest) {
+
   const { pathname } = req.nextUrl;
 
-  // Permite acessar a página de login
+  // permite acessar login
   if (pathname === "/admin/login") {
     return NextResponse.next();
   }
 
-  // Verifica cookie de sessão criado pelo Firebase Admin
+  // verifica sessão
   const session = req.cookies.get("session");
 
-  // Se não tiver sessão, redireciona para login
   if (!session) {
-    const loginUrl = new URL("/admin/login", req.url);
-    loginUrl.searchParams.set("next", pathname);
-    return NextResponse.redirect(loginUrl);
+
+    const url = new URL("/admin/login", req.url);
+
+    url.searchParams.set("next", pathname);
+
+    return NextResponse.redirect(url);
+
   }
 
-  // Se tiver sessão, continua normalmente
   return NextResponse.next();
 }
 
-// IMPORTANTE: limita o middleware apenas ao /admin
+
+// MUITO IMPORTANTE
 export const config = {
   matcher: ["/admin/:path*"],
 };
