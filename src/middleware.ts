@@ -1,32 +1,24 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 
 export function middleware(req: NextRequest) {
+  const pathname = req.nextUrl.pathname;
 
-  const { pathname } = req.nextUrl;
+  // libera o login
+  if (pathname === "/admin/login") return NextResponse.next();
 
-  // permite acessar login
-  if (pathname === "/admin/login") {
-    return NextResponse.next();
-  }
-
-  // verifica sessão
+  // cookie de sessão do seu projeto
   const session = req.cookies.get("session");
 
   if (!session) {
-
     const url = new URL("/admin/login", req.url);
-
     url.searchParams.set("next", pathname);
-
     return NextResponse.redirect(url);
-
   }
 
   return NextResponse.next();
 }
 
-
-// MUITO IMPORTANTE
 export const config = {
   matcher: ["/admin/:path*"],
 };
