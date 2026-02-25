@@ -24,6 +24,26 @@ type Props = {
   }) => Promise<void>;
 };
 
+function normalizeNumberInput(raw: string) {
+  return raw.trim().replace(",", ".");
+}
+
+function parseNonNegativeNumber(raw: string, fallback = 0) {
+  const v = normalizeNumberInput(raw);
+  if (v === "") return fallback;
+  const n = Number(v);
+  if (!Number.isFinite(n) || n < 0) return NaN;
+  return n;
+}
+
+function parseOptionalNonNegativeNumber(raw: string) {
+  const v = normalizeNumberInput(raw);
+  if (v === "") return undefined;
+  const n = Number(v);
+  if (!Number.isFinite(n) || n < 0) return NaN as any;
+  return n;
+}
+
 export function KitForm({ initialData, onSubmit }: Props) {
   const isEdit = Boolean(initialData?.id);
 
@@ -31,17 +51,20 @@ export function KitForm({ initialData, onSubmit }: Props) {
   const [descricao, setDescricao] = useState(initialData?.descricao || "");
 
   const [codigo, setCodigo] = useState((initialData as any)?.codigo || "");
-  const [preco, setPreco] = useState<number>(
-    typeof (initialData as any)?.preco === "number" ? (initialData as any).preco : 0
-  );
+
+  // ✅ preço como string (opcional: novo começa vazio)
+  const [preco, setPreco] = useState<string>(() => {
+    const p = (initialData as any)?.preco;
+    return typeof p === "number" && Number.isFinite(p) && p >= 0 ? String(p) : "";
+  });
 
   const [ativo, setAtivo] = useState(initialData?.ativo ?? true);
   const [publicado, setPublicado] = useState(initialData?.publicado ?? false);
 
-  const [ordem, setOrdem] = useState<number>(() => {
+  // ✅ ordem como string
+  const [ordem, setOrdem] = useState<string>(() => {
     const o = (initialData as any)?.ordem;
-    if (typeof o === "number" && Number.isFinite(o) && o >= 0) return o;
-    return 0;
+    return typeof o === "number" && Number.isFinite(o) && o >= 0 ? String(o) : "0";
   });
 
   const [fotoUrl, setFotoUrl] = useState((initialData as any)?.fotoUrl || "");
@@ -56,13 +79,15 @@ export function KitForm({ initialData, onSubmit }: Props) {
     setDescricao((initialData as any)?.descricao || "");
 
     setCodigo((initialData as any)?.codigo || "");
-    setPreco(typeof (initialData as any)?.preco === "number" ? (initialData as any).preco : 0);
+
+    const p = (initialData as any)?.preco;
+    setPreco(typeof p === "number" && Number.isFinite(p) && p >= 0 ? String(p) : "");
 
     setAtivo((initialData as any)?.ativo ?? true);
     setPublicado((initialData as any)?.publicado ?? false);
 
     const o = (initialData as any)?.ordem;
-    setOrdem(typeof o === "number" && Number.isFinite(o) && o >= 0 ? o : 0);
+    setOrdem(typeof o === "number" && Number.isFinite(o) && o >= 0 ? String(o) : "0");
 
     setFotoUrl((initialData as any)?.fotoUrl || "");
     setFotoPublicId((initialData as any)?.fotoPublicId || "");
@@ -95,11 +120,11 @@ export function KitForm({ initialData, onSubmit }: Props) {
 
     if (nomeTrim.length < 3) return setError("Nome muito curto (mínimo 3).");
 
-    const ord = Number(ordem);
-    if (!Number.isFinite(ord) || ord < 0) return setError("Ordem inválida.");
+    const ord = parseNonNegativeNumber(ordem, 0);
+    if (!Number.isFinite(ord)) return setError("Ordem inválida.");
 
-    const pr = Number(preco);
-    if (!Number.isFinite(pr) || pr < 0) return setError("Preço inválido.");
+    const pr = parseOptionalNonNegativeNumber(preco);
+    if (typeof pr === "number" && !Number.isFinite(pr)) return setError("Preço inválido.");
 
     // regra: não deixa PUBLICAR sem imagem
     if (publicado && (!fotoUrl || !fotoPublicId)) {
@@ -120,7 +145,7 @@ export function KitForm({ initialData, onSubmit }: Props) {
         fotoPublicId: fotoPublicId || undefined,
 
         codigo: codTrim || undefined,
-        preco: Number.isFinite(pr) ? pr : undefined,
+        preco: typeof pr === "number" && Number.isFinite(pr) ? pr : undefined,
       });
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Erro ao salvar");
@@ -173,7 +198,7 @@ export function KitForm({ initialData, onSubmit }: Props) {
                 type="number"
                 className={fieldClass}
                 value={ordem}
-                onChange={(e) => setOrdem(Number(e.target.value) || 0)}
+                onChange={(e) => setOrdem(e.target.value)}
                 min={0}
               />
               <p className="mt-2 text-xs text-gray-500">Menor número aparece primeiro.</p>
@@ -204,9 +229,10 @@ export function KitForm({ initialData, onSubmit }: Props) {
                   type="number"
                   className={fieldClass}
                   value={preco}
-                  onChange={(e) => setPreco(Number(e.target.value) || 0)}
+                  onChange={(e) => setPreco(e.target.value)}
                   min={0}
                   step="0.01"
+                  placeholder="Ex: 29,90"
                 />
               </div>
             </div>

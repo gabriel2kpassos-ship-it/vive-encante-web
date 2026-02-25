@@ -24,32 +24,54 @@ type Props = {
   }) => Promise<void>;
 };
 
+function normalizeNumberInput(raw: string) {
+  // aceita "12,50" e "12.50"
+  return raw.trim().replace(",", ".");
+}
+
+function parseNonNegativeNumber(raw: string, fallback = 0) {
+  const v = normalizeNumberInput(raw);
+  if (v === "") return fallback;
+  const n = Number(v);
+  if (!Number.isFinite(n) || n < 0) return NaN;
+  return n;
+}
+
+function parseOptionalNonNegativeNumber(raw: string) {
+  const v = normalizeNumberInput(raw);
+  if (v === "") return undefined;
+  const n = Number(v);
+  if (!Number.isFinite(n) || n < 0) return NaN as any;
+  return n;
+}
+
 export function ProdutoForm({ initialData, onSubmit }: Props) {
   const isEdit = Boolean(initialData?.id);
 
   const [nome, setNome] = useState(initialData?.nome || "");
   const [descricao, setDescricao] = useState(initialData?.descricao || "");
 
-  const [quantidade, setQuantidade] = useState<number>(
-    typeof initialData?.quantidade === "number" ? initialData.quantidade : 0
-  );
+  // ✅ agora como string (para não travar ao apagar/digitar)
+  const [quantidade, setQuantidade] = useState<string>(() => {
+    const q = initialData?.quantidade;
+    return typeof q === "number" && Number.isFinite(q) && q >= 0 ? String(q) : "0";
+  });
 
   const [codigo, setCodigo] = useState(initialData?.codigo || "");
-  const [preco, setPreco] = useState<number>(
-    typeof (initialData as any)?.preco === "number" ? (initialData as any).preco : 0
-  );
+
+  // ✅ preço opcional: começa vazio no novo (não 0)
+  const [preco, setPreco] = useState<string>(() => {
+    const p = (initialData as any)?.preco;
+    return typeof p === "number" && Number.isFinite(p) && p >= 0 ? String(p) : "";
+  });
 
   const [ativo, setAtivo] = useState(initialData?.ativo ?? true);
   const [publicado, setPublicado] = useState(initialData?.publicado ?? false);
 
-  // ✅ ORDEM PADRÃO (corrigido):
-  // - NOVO: 0
-  // - EDITAR: usa valor existente
-  // - inválido: 0
-  const [ordem, setOrdem] = useState<number>(() => {
+  // ✅ ordem como string
+  const [ordem, setOrdem] = useState<string>(() => {
     const o = initialData?.ordem;
-    if (typeof o === "number" && Number.isFinite(o) && o >= 0) return o;
-    return 0;
+    return typeof o === "number" && Number.isFinite(o) && o >= 0 ? String(o) : "0";
   });
 
   const [fotoUrl, setFotoUrl] = useState(initialData?.fotoUrl || "");
@@ -62,14 +84,20 @@ export function ProdutoForm({ initialData, onSubmit }: Props) {
   useEffect(() => {
     setNome(initialData?.nome || "");
     setDescricao(initialData?.descricao || "");
-    setQuantidade(typeof initialData?.quantidade === "number" ? initialData.quantidade : 0);
+
+    const q = initialData?.quantidade;
+    setQuantidade(typeof q === "number" && Number.isFinite(q) && q >= 0 ? String(q) : "0");
+
     setCodigo(initialData?.codigo || "");
-    setPreco(typeof (initialData as any)?.preco === "number" ? (initialData as any).preco : 0);
+
+    const p = (initialData as any)?.preco;
+    setPreco(typeof p === "number" && Number.isFinite(p) && p >= 0 ? String(p) : "");
+
     setAtivo(initialData?.ativo ?? true);
     setPublicado(initialData?.publicado ?? false);
 
     const o = initialData?.ordem;
-    setOrdem(typeof o === "number" && Number.isFinite(o) && o >= 0 ? o : 0);
+    setOrdem(typeof o === "number" && Number.isFinite(o) && o >= 0 ? String(o) : "0");
 
     setFotoUrl(initialData?.fotoUrl || "");
     setFotoPublicId(initialData?.fotoPublicId || "");
@@ -108,14 +136,15 @@ export function ProdutoForm({ initialData, onSubmit }: Props) {
       return setError("Se usar descrição, coloque pelo menos 5 caracteres.");
     }
 
-    const qtd = Number(quantidade);
-    if (!Number.isFinite(qtd) || qtd < 0) return setError("Quantidade inválida.");
+    const qtd = parseNonNegativeNumber(quantidade, 0);
+    if (!Number.isFinite(qtd)) return setError("Quantidade inválida.");
 
-    const ord = Number(ordem);
-    if (!Number.isFinite(ord) || ord < 0) return setError("Ordem inválida.");
+    const ord = parseNonNegativeNumber(ordem, 0);
+    if (!Number.isFinite(ord)) return setError("Ordem inválida.");
 
-    const pr = Number(preco);
-    if (!Number.isFinite(pr) || pr < 0) return setError("Preço inválido.");
+    const pr = parseOptionalNonNegativeNumber(preco);
+    // se veio NaN (preenchido, mas inválido)
+    if (typeof pr === "number" && !Number.isFinite(pr)) return setError("Preço inválido.");
 
     // regra: não deixa PUBLICAR sem imagem
     if (publicado && !fotoUrl) {
@@ -137,7 +166,7 @@ export function ProdutoForm({ initialData, onSubmit }: Props) {
         fotoPublicId: fotoPublicId || undefined,
 
         codigo: codTrim || undefined,
-        preco: Number.isFinite(pr) ? pr : undefined,
+        preco: typeof pr === "number" && Number.isFinite(pr) ? pr : undefined,
       });
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Erro ao salvar");
@@ -195,7 +224,7 @@ export function ProdutoForm({ initialData, onSubmit }: Props) {
                   type="number"
                   className={fieldClass}
                   value={quantidade}
-                  onChange={(e) => setQuantidade(Number(e.target.value) || 0)}
+                  onChange={(e) => setQuantidade(e.target.value)}
                   min={0}
                 />
               </div>
@@ -206,7 +235,7 @@ export function ProdutoForm({ initialData, onSubmit }: Props) {
                   type="number"
                   className={fieldClass}
                   value={ordem}
-                  onChange={(e) => setOrdem(Number(e.target.value) || 0)}
+                  onChange={(e) => setOrdem(e.target.value)}
                   min={0}
                 />
                 <p className="mt-2 text-xs text-gray-500">Menor número aparece primeiro.</p>
@@ -238,9 +267,10 @@ export function ProdutoForm({ initialData, onSubmit }: Props) {
                   type="number"
                   className={fieldClass}
                   value={preco}
-                  onChange={(e) => setPreco(Number(e.target.value) || 0)}
+                  onChange={(e) => setPreco(e.target.value)}
                   min={0}
                   step="0.01"
+                  placeholder="Ex: 19,90"
                 />
               </div>
             </div>
@@ -251,9 +281,7 @@ export function ProdutoForm({ initialData, onSubmit }: Props) {
         <div className="space-y-5">
           <section className="rounded-2xl border bg-white p-5">
             <h2 className="text-base font-extrabold text-gray-900">Foto</h2>
-            <p className="mt-1 text-sm text-gray-600">
-              Publicado na vitrine exige imagem.
-            </p>
+            <p className="mt-1 text-sm text-gray-600">Publicado na vitrine exige imagem.</p>
 
             <div className="mt-4">
               <ImageUploader
@@ -292,9 +320,7 @@ export function ProdutoForm({ initialData, onSubmit }: Props) {
                   className="mt-1"
                 />
                 <span>
-                  <span className="block text-sm font-semibold text-gray-900">
-                    Ativo no sistema
-                  </span>
+                  <span className="block text-sm font-semibold text-gray-900">Ativo no sistema</span>
                   <span className="block text-xs text-gray-600">
                     Se desativar, ele não deve aparecer nem internamente.
                   </span>
